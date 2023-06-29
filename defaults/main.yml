@@ -50,3 +50,7 @@ docker_users: []
 
 # Docker daemon options as a dict
 docker_daemon_options: {}
+
+# nvidia-container-toolkit
+nc_toolkit_gpg_key: "https://nvidia.github.io/libnvidia-container/gpgkey"
+nc_toolkit_source_list: "https://nvidia.github.io/libnvidia-container/{{ ansible_distribution | lower }}{{ ansible_distribution_version }}/libnvidia-container.list"

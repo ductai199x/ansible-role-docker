@@ -1,0 +1,47 @@
+- name: Gather the package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Check if nvidia-container-toolkit is already installed
+  ansible.builtin.set_fact:
+    is_nc_toolkit_installed: "{{ 'nvidia-container-toolkit' in ansible_facts.packages }}"
+
+- name: Debug print
+  ansible.builtin.debug:
+    msg: 
+      - "nvidia-container-toolkit: {{ is_nc_toolkit_installed }}"
+
+- name: Install nvidia-container-toolkit
+  when: is_nc_toolkit_installed | bool == false
+  block:
+    - name: Add nvidia-container-toolkit gpg key
+      ansible.builtin.get_url:
+        url: "{{ nc_toolkit_gpg_key }}"
+        dest: /etc/apt/trusted.gpg.d/nvidia-container-toolkit.gpg
+        mode: '0644'
+        force: true
+      register: nc_toolkit_gpg_key_output
+    
+    - name: Add nvidia-container-toolkit source list file (add apt repo)
+      ansible.builtin.shell: > 
+        curl -sL {{ nc_toolkit_source_list }} | 
+        sed 's#deb https://#deb [signed-by=/etc/apt/trusted.gpg.d/nvidia-container-toolkit.gpg] https://#g' |
+        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      register: nc_toolkit_source_list_output
+
+    - name: Install nvidia-container-toolkit
+      ansible.builtin.apt:
+        name: nvidia-container-toolkit
+        state: present
+      when: nc_toolkit_gpg_key_output is success and nc_toolkit_source_list_output is success
+
+    - name: Configure nvidia-container-runtime with docker
+      ansible.builtin.command: >
+        nvidia-ctk runtime configure --runtime=docker
+      register: nc_runtime_config_output
+      when: nc_toolkit_gpg_key_output is success and nc_toolkit_source_list_output is success
+
+    - name: Restart docker service
+      ansible.builtin.command: >
+        systemctl restart docker
+      when: nc_toolkit_gpg_key_output is success and nc_toolkit_source_list_output is success and nc_runtime_config_output is success
